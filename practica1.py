@@ -3,6 +3,7 @@ import cv2
 # Vídeo de entrada y vídeo de salida
 VIDEO_ENTRADA = 'Video Práctica.mp4'
 VIDEO_SALIDA = 'video_regiones.mp4'
+VIDEO_SALIDA_OCULTAS = 'video_regiones_ocultas.mp4'
 
 # Nombre de la ventana
 VENTANA = 'Video'
@@ -36,6 +37,10 @@ editando = False
 
 # Frame actual sin nada dibujado
 frame = None
+
+# Preguntar si también se quiere generar el vídeo con las regiones ocultas
+respuestaOcultar = input('¿Generar también un vídeo con las regiones ocultas? (s/n): ')
+generarOcultas = respuestaOcultar.strip().lower() in ('s', 'si', 'sí', 'y', 'yes')
 
 
 # Rectángulo del tamaño fijado centrado en (x, y), sin salirse del frame
@@ -78,6 +83,17 @@ def dibujarRegiones(imagen):
 
     for (p1, p2) in regiones:
         dibujarRectangulo(resultado, p1, p2, GROSOR)
+
+    return resultado
+
+
+# Sustituye el interior de las regiones seleccionadas por negro
+def ocultarRegiones(imagen):
+
+    resultado = imagen.copy()
+
+    for (p1, p2) in regiones:
+        cv2.rectangle(resultado, p1, p2, (0, 0, 0), -1)
 
     return resultado
 
@@ -159,10 +175,21 @@ alto = int(captura.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = captura.get(cv2.CAP_PROP_FPS)
 total = int(captura.get(cv2.CAP_PROP_FRAME_COUNT))
 
-# Crear el vídeo de salida con el mismo tamaño y velocidad
-# (códec H.264 para que se pueda reproducir en QuickTime y VS Code)
-fourcc = cv2.VideoWriter_fourcc(*'avc1')
+# Crear los vídeos de salida con el mismo tamaño y velocidad
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 salida = cv2.VideoWriter(VIDEO_SALIDA, fourcc, fps, (ancho, alto))
+salidaOcultas = None
+if generarOcultas:
+    salidaOcultas = cv2.VideoWriter(VIDEO_SALIDA_OCULTAS, fourcc, fps, (ancho, alto))
+
+if not salida.isOpened() or (generarOcultas and not salidaOcultas.isOpened()):
+    print('No se han podido crear los vídeos de salida')
+    captura.release()
+    salida.release()
+    if salidaOcultas is not None:
+        salidaOcultas.release()
+    cv2.destroyAllWindows()
+    exit()
 
 # Crear la ventana y detectar los eventos del ratón
 cv2.namedWindow(VENTANA)
@@ -192,6 +219,8 @@ while True:
     # Si el usuario ha terminado, copiamos el frame tal cual
     if terminar:
         salida.write(frame)
+        if salidaOcultas is not None:
+            salidaOcultas.write(ocultarRegiones(frame))
         continue
 
     # Cada CADA_N_FRAMES frames paramos para que el usuario seleccione
@@ -236,6 +265,8 @@ while True:
 
         if terminar:
             salida.write(frame)
+            if salidaOcultas is not None:
+                salidaOcultas.write(ocultarRegiones(frame))
             continue
 
         # Registrar los puntos seleccionados para este tramo
@@ -250,10 +281,16 @@ while True:
 
     # Guardar el frame con las regiones dibujadas
     salida.write(dibujarRegiones(frame))
+    if salidaOcultas is not None:
+        salidaOcultas.write(ocultarRegiones(frame))
 
 # Liberar recursos
 captura.release()
 salida.release()
+if salidaOcultas is not None:
+    salidaOcultas.release()
 cv2.destroyAllWindows()
 
 print('Vídeo guardado en', VIDEO_SALIDA)
+if generarOcultas:
+    print('Vídeo con regiones ocultas guardado en', VIDEO_SALIDA_OCULTAS)
