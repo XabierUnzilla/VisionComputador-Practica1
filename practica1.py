@@ -177,6 +177,9 @@ print('  - Espacio o n: seguir; las regiones se mantienen los siguientes', CADA_
 print('    (en cada parada se empieza sin regiones)')
 print('  - q o Esc: terminar (el resto de frames se guardan sin regiones)')
 
+# Vídeos de salida de las regiones
+videosRegiones = []
+
 numFrame = 0
 terminar = False
 
@@ -238,6 +241,36 @@ while True:
             salida.write(frame)
             continue
 
+        # Crear un vídeo para cada elemento seleccionado
+        # Solo se crean nuevos vídeos si todavía no existen
+        for i, (p1, p2) in enumerate(regiones):
+
+            if i >= len(videosRegiones):
+
+                # Obtener el tamaño de la región
+                x1, y1 = p1
+                x2, y2 = p2
+
+                anchoRegion = x2 - x1
+                altoRegion = y2 - y1
+
+                # Evitar dimensiones nulas
+                if anchoRegion == 0 or altoRegion == 0:
+                    continue
+
+                # Crear el vídeo correspondiente al elemento
+                nombreRegion = 'region_' + str(i + 1) + '.mp4'
+
+                videoRegion = cv2.VideoWriter(
+                    nombreRegion,
+                    cv2.VideoWriter_fourcc(*'mp4v'),
+                    fps,
+                    (anchoRegion, altoRegion)
+                )
+
+                # Guardar el vídeo para utilizarlo en los siguientes tramos
+                videosRegiones.append(videoRegion)
+
         # Registrar los puntos seleccionados para este tramo
         fin = min(numFrame + CADA_N_FRAMES - 1, total)
         print('Frames', numFrame, 'a', fin, '->', regiones)
@@ -251,6 +284,24 @@ while True:
     # Guardar el frame con las regiones dibujadas
     salida.write(dibujarRegiones(frame))
 
+    # Guardar el recorte de cada elemento en su vídeo correspondiente
+    for i, (p1, p2) in enumerate(regiones):
+
+        # Obtener las coordenadas actuales del elemento
+        x1, y1 = p1
+        x2, y2 = p2
+
+        # Recortar el frame original
+        recorte = frame[y1:y2, x1:x2]
+
+        # Añadir el recorte al vídeo del mismo elemento
+        if i < len(videosRegiones):
+            videosRegiones[i].write(recorte)
+
+# Cerrar todos los vídeos de las regiones
+for videoRegion in videosRegiones:
+    videoRegion.release()
+    
 # Liberar recursos
 captura.release()
 salida.release()
